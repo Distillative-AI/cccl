@@ -57,6 +57,10 @@
 #include <cuda/std/initializer_list>
 #include <cuda/std/version>
 
+#if !_CCCL_COMPILER(NVRTC)
+#  include <array>
+#endif // !_CCCL_COMPILER(NVRTC)
+
 #include <cuda/std/__cccl/prologue.h>
 
 _CCCL_BEGIN_NAMESPACE_CUDA_STD
@@ -175,14 +179,14 @@ public:
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_TEMPLATE(class _OtherElementType)
   _CCCL_REQUIRES(__span_array_convertible<_OtherElementType, element_type>)
-  _CCCL_API constexpr span(struct ::std::array<_OtherElementType, _Extent>& __arr) noexcept
+  _CCCL_API constexpr span(::std::array<_OtherElementType, _Extent>& __arr) noexcept
       : __data_{__arr.data()}
   {}
 
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_TEMPLATE(class _OtherElementType)
   _CCCL_REQUIRES(__span_array_convertible<const _OtherElementType, element_type>)
-  _CCCL_API constexpr span(const struct ::std::array<_OtherElementType, _Extent>& __arr) noexcept
+  _CCCL_API constexpr span(const ::std::array<_OtherElementType, _Extent>& __arr) noexcept
       : __data_{__arr.data()}
   {}
 #endif // !_CCCL_COMPILER(NVRTC)
@@ -417,7 +421,7 @@ public:
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_TEMPLATE(class _OtherElementType, size_t _Sz)
   _CCCL_REQUIRES(__span_array_convertible<_OtherElementType, element_type>)
-  _CCCL_API constexpr span(struct ::std::array<_OtherElementType, _Sz>& __arr) noexcept
+  _CCCL_API constexpr span(::std::array<_OtherElementType, _Sz>& __arr) noexcept
       : __data_{__arr.data()}
       , __size_{_Sz}
   {}
@@ -425,7 +429,7 @@ public:
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_TEMPLATE(class _OtherElementType, size_t _Sz)
   _CCCL_REQUIRES(__span_array_convertible<const _OtherElementType, element_type>)
-  _CCCL_API constexpr span(const struct ::std::array<_OtherElementType, _Sz>& __arr) noexcept
+  _CCCL_API constexpr span(const ::std::array<_OtherElementType, _Sz>& __arr) noexcept
       : __data_{__arr.data()}
       , __size_{_Sz}
   {}
@@ -606,10 +610,10 @@ _CCCL_HOST_DEVICE span(const array<_Tp, _Sz>&) -> span<const _Tp, _Sz>;
 
 #if !_CCCL_COMPILER(NVRTC)
 template <class _Tp, size_t _Sz>
-_CCCL_HOST_DEVICE span(struct ::std::array<_Tp, _Sz>&) -> span<_Tp, _Sz>;
+_CCCL_HOST_DEVICE span(::std::array<_Tp, _Sz>&) -> span<_Tp, _Sz>;
 
 template <class _Tp, size_t _Sz>
-_CCCL_HOST_DEVICE span(const struct ::std::array<_Tp, _Sz>&) -> span<const _Tp, _Sz>;
+_CCCL_HOST_DEVICE span(const ::std::array<_Tp, _Sz>&) -> span<const _Tp, _Sz>;
 #endif // !_CCCL_COMPILER(NVRTC)
 
 _CCCL_TEMPLATE(class _It, class _EndOrSize)
