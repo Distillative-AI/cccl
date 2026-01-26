@@ -61,6 +61,6 @@ def bench_unary_transform_pointer(state: bench.State):
 
 if __name__ == "__main__":
     b1 = bench.register(bench_unary_transform_pointer)
-    b1.add_int64_power_of_two_axis("Elements", [1, 10, 14, 17, 20, 24, 26])
+    b1.add_int64_power_of_two_axis("Elements", range(12, 29, 4))
 
     bench.run_all_benchmarks(sys.argv)
