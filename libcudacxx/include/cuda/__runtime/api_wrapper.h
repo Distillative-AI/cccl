@@ -47,20 +47,6 @@
     _CCCL_ASSERT(__status == cudaSuccess, _MSG);                        \
   } while (0)
 
-#define _CCCL_ABORT_CUDA_API(_NAME, _MSG, ...)                                     \
-  do                                                                               \
-  {                                                                                \
-    [[maybe_unused]] const ::cudaError_t __status = _NAME(__VA_ARGS__);            \
-    if (__status != ::cudaSuccess)                                                 \
-    {                                                                              \
-      ::cuda::__msg_storage __msg_buffer;                                          \
-      ::cuda::__detail::__format_cuda_error(__msg_buffer, __status, _MSG, #_NAME); \
-      ::fprintf(stderr, "%s\n", __msg_buffer.__buffer);                            \
-      ::fflush(stderr);                                                            \
-      ::cuda::std::terminate();                                                    \
-    }                                                                              \
-  } while (0)
-
 #define _CCCL_LOG_CUDA_API(_NAME, _MSG, ...)                                       \
   [&]() {                                                                          \
     const ::cudaError_t __status = _NAME(__VA_ARGS__);                             \

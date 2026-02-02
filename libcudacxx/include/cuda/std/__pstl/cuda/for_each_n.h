@@ -54,13 +54,13 @@ struct __pstl_dispatch<__pstl_algorithm::__for_each_n, __execution_backend::__cu
 {
   template <class _Policy, class _Iter, class _Size, class _Fn>
   [[nodiscard]] _CCCL_HOST_API static _Iter
-  __par_impl([[maybe_unused]] const _Policy& __policy, _Iter __first, _Size __orig_n, _Fn __func) noexcept
+  __par_impl(const _Policy& __policy, _Iter __first, _Size __orig_n, _Fn __func)
   {
     const auto __count = ::cuda::std::__convert_to_integral(__orig_n);
 
     auto __stream = ::cuda::__call_or(::cuda::get_stream, ::cuda::stream_ref{cudaStreamPerThread}, __policy);
 
-    _CCCL_ABORT_CUDA_API(
+    _CCCL_TRY_CUDA_API(
       ::cub::DeviceFor::ForEachN,
       "__pstl_dispatch: kernel launch failed",
       __first,
