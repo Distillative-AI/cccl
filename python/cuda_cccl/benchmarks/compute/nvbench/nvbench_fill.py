@@ -63,9 +63,7 @@ def bench_fill(state: bench.State):
 
     # Execute benchmark
     def launcher(launch: bench.Launch):
-        exec_stream = as_cupy_stream(launch.get_stream())
-        with exec_stream:
-            transform(constant_it, out, size)
+        transform(constant_it, out, size, stream=launch.get_stream())
 
     state.exec(launcher)
 
