@@ -25,6 +25,10 @@ C2H_TEST("cub::DevicePartition::If accepts determinism requirements", "[partitio
   auto env = cuda::execution::require(cuda::execution::determinism::run_to_run);
 
   auto error = cub::DevicePartition::If(input.begin(), output.begin(), num_selected.begin(), input.size(), le, env);
+  if (error != cudaSuccess)
+  {
+    std::cerr << "cub::DevicePartition::If failed with status: " << error << std::endl;
+  }
 
   // Selected items (< 5) at front, unselected items (>= 5) at back in reverse order
   thrust::device_vector<int> expected_output{1, 2, 3, 4, 8, 7, 6, 5};
@@ -48,6 +52,10 @@ C2H_TEST("cub::DevicePartition::Flagged accepts determinism requirements", "[par
 
   auto error = cub::DevicePartition::Flagged(
     input.begin(), flags.begin(), output.begin(), num_selected.begin(), input.size(), env);
+  if (error != cudaSuccess)
+  {
+    std::cerr << "cub::DevicePartition::Flagged failed with status: " << error << std::endl;
+  }
 
   // Selected items (flagged) at front, unselected items at back in reverse order
   thrust::device_vector<int> expected_output{1, 4, 6, 7, 8, 5, 3, 2};
