@@ -17,10 +17,7 @@ import cuda.bench as bench
 import cuda.compute
 from cuda.compute import ConstantIterator
 
-
-def as_cupy_stream(cs: bench.CudaStream) -> cp.cuda.Stream:
-    """Convert nvbench CudaStream to CuPy Stream."""
-    return cp.cuda.ExternalStream(cs.addressof())
+from utils import as_cupy_stream
 
 
 # Type mapping: C++ types to NumPy dtypes
@@ -56,7 +53,7 @@ def bench_fill(state: bench.State):
 
     transform = cuda.compute.make_unary_transform(constant_it, out, identity)
 
-    # Match C++ metrics:
+    # Match C++ metrics
     state.add_element_count(size)
     state.add_global_memory_reads(0)
     state.add_global_memory_writes(size * out.dtype.itemsize)
@@ -70,9 +67,10 @@ def bench_fill(state: bench.State):
 
 if __name__ == "__main__":
     b = bench.register(bench_fill)
+    b.set_name("fill")
 
-    # Match C++ axis:
+    # Match C++ axis
     b.add_string_axis("T", list(TYPE_MAP.keys()))
-    b.add_int64_power_of_two_axis("Elements", range(16, 36, 4))
+    b.add_int64_power_of_two_axis("Elements", range(16, 33, 4))
 
     bench.run_all_benchmarks(sys.argv)

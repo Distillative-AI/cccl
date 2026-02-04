@@ -41,8 +41,8 @@ RUN_CPP=true
 # Supported benchmarks (Python implementations available)
 SUPPORTED_BENCHMARKS=(
     "fill"
+    "babelstream"
     # Add more as implemented:
-    # "babelstream"
     # "reduce_sum"
     # "scan_exclusive_sum"
     # "histogram_even"
@@ -169,6 +169,10 @@ for bench in "${BENCHMARKS_TO_RUN[@]}"; do
             CPP_BINARY="cub.bench.transform.fill.base"
             PY_SCRIPT="bench_fill.py"
             ;;
+        babelstream)
+            CPP_BINARY="cub.bench.transform.babelstream.base"
+            PY_SCRIPT="bench_babelstream.py"
+            ;;
         # Add more mappings as benchmarks are implemented
         *)
             echo "WARNING: Unknown benchmark mapping for '$bench', skipping"
@@ -229,5 +233,5 @@ done
 
 echo ""
 echo "To compare results, run:"
-echo "  ./compare_results.sh -b <benchmark> -d $DEVICE"
+echo "  python analysis/python_vs_cpp_summary.py -b <benchmark> -d $DEVICE"
 echo ""

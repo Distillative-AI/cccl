@@ -18,6 +18,7 @@ Usage:
 import argparse
 import math
 import sys
+from itertools import product
 from pathlib import Path
 
 try:
@@ -31,8 +32,8 @@ import utils
 # Supported benchmarks (must match run_benchmarks.sh)
 SUPPORTED_BENCHMARKS = [
     "fill",
+    "babelstream",
     # Add more as implemented:
-    # "babelstream",
     # "reduce_sum",
     # "scan_exclusive_sum",
     # "histogram_even",
@@ -42,12 +43,28 @@ SUPPORTED_BENCHMARKS = [
     # "unique_by_key",
 ]
 
+# Standard axes that are handled specially (not used for grouping)
+# - Elements: always shown as table rows
+# - T: grouped by type, shown as section headers
+# - OffsetT: filtered to I64 for Python compatibility
+STANDARD_AXES = {"Elements", "T", "OffsetT"}
+
+# Axes to filter (Python doesn't have these, prefer specific values for fair comparison)
+FILTER_AXES = {
+    "OffsetT": "I64",  # Python uses 64-bit offsets
+}
+
 
 def extract_measurements(results):
     """Extract all state measurements with GPU and CPU time."""
     measurements = []
 
     for benchmark in results.get("benchmarks", []):
+        bench_name = benchmark.get("name", "unknown")
+        # Normalize benchmark name: remove "bench_" prefix for compatibility
+        if bench_name.startswith("bench_"):
+            bench_name = bench_name[6:]
+
         for state in benchmark.get("states", []):
             if state.get("is_skipped"):
                 continue
@@ -85,6 +102,7 @@ def extract_measurements(results):
             if gpu_time:
                 measurements.append(
                     {
+                        "benchmark": bench_name,
                         "device": state["device"],
                         "axes": axes,
                         "gpu_time": gpu_time,
@@ -112,12 +130,94 @@ def format_percentage(value):
     return "%0.2f%%" % (value * 100.0)
 
 
-def _print_comparison_table(py_measurements, cpp_measurements):
+def filter_measurements(measurements, axis_filters):
+    """
+    Filter measurements by axis values.
+
+    Args:
+        measurements: List of measurement dicts
+        axis_filters: Dict of {axis_name: preferred_value}
+
+    Returns:
+        Filtered list of measurements
+    """
+    result = measurements
+    for axis_name, preferred_value in axis_filters.items():
+        # Check if this axis exists in any measurement
+        has_axis = any(axis_name in m["axes"] for m in result)
+        if not has_axis:
+            continue
+
+        # Filter to preferred value if it exists
+        filtered = [m for m in result if m["axes"].get(axis_name) == preferred_value]
+        if filtered:
+            result = filtered
+        # Otherwise keep all (don't filter if preferred value doesn't exist)
+
+    return result
+
+
+def get_grouping_axes(measurements):
+    """
+    Identify axes that should be used for hierarchical grouping.
+
+    These are algorithm-specific axes like Entropy, Bins, InPlace that
+    affect performance characteristics and should be shown separately.
+
+    Returns:
+        List of axis names (sorted for consistent ordering)
+    """
+    all_axes = set()
+    for m in measurements:
+        all_axes.update(m["axes"].keys())
+
+    # Grouping axes = all axes except standard ones
+    grouping_axes = all_axes - STANDARD_AXES
+    return sorted(grouping_axes)
+
+
+def get_axis_values(measurements, axis_name):
+    """Get sorted unique values for an axis."""
+    values = set()
+    for m in measurements:
+        if axis_name in m["axes"]:
+            values.add(m["axes"][axis_name])
+    return sorted(values)
+
+
+def filter_by_axes(measurements, axis_values):
+    """
+    Filter measurements to match specific axis values.
+
+    Args:
+        measurements: List of measurement dicts
+        axis_values: Dict of {axis_name: value} to match
+
+    Returns:
+        Filtered list
+    """
+    result = []
+    for m in measurements:
+        match = True
+        for axis_name, value in axis_values.items():
+            if m["axes"].get(axis_name) != value:
+                match = False
+                break
+        if match:
+            result.append(m)
+    return result
+
+
+def print_comparison_table(py_measurements, cpp_measurements, output_fn):
     """Print comparison table for given measurements."""
     # Group by element size
-    element_sizes = sorted(
-        set(int(m["axes"].get("Elements", 0)) for m in py_measurements)
-    )
+    py_sizes = set(int(m["axes"].get("Elements", 0)) for m in py_measurements)
+    cpp_sizes = set(int(m["axes"].get("Elements", 0)) for m in cpp_measurements)
+    element_sizes = sorted(py_sizes & cpp_sizes)  # Only sizes in both
+
+    if not element_sizes:
+        output_fn("No matching element sizes found.")
+        return
 
     # Build table data with CPU time for interpreter overhead
     table_data = []
@@ -159,7 +259,7 @@ def _print_comparison_table(py_measurements, cpp_measurements):
         if not py_times or not cpp_times:
             continue
 
-        # Average if multiple measurements
+        # Average if multiple measurements (shouldn't happen with proper grouping)
         py_avg = sum(py_times) / len(py_times)
         cpp_avg = sum(cpp_times) / len(cpp_times)
 
@@ -202,11 +302,11 @@ def _print_comparison_table(py_measurements, cpp_measurements):
             )
 
     # Print table using tabulate
-    print(tabulate.tabulate(table_data, headers=headers, tablefmt="github"))
+    output_fn(tabulate.tabulate(table_data, headers=headers, tablefmt="github"))
 
 
 def compare_benchmark(py_path, cpp_path, device=None, output_file=None):
-    """Compare Python vs C++ benchmark results."""
+    """Compare Python vs C++ benchmark results with hierarchical grouping."""
     if not py_path.exists():
         print(f"Error: Python results not found: {py_path}")
         return False
@@ -229,6 +329,9 @@ def compare_benchmark(py_path, cpp_path, device=None, output_file=None):
         print("No matching measurements found!")
         return False
 
+    # Apply standard filters (e.g., OffsetT → I64)
+    cpp_measurements = filter_measurements(cpp_measurements, FILTER_AXES)
+
     # Capture output if writing to file
     output_lines = []
 
@@ -236,10 +339,9 @@ def compare_benchmark(py_path, cpp_path, device=None, output_file=None):
         print(line)
         output_lines.append(line)
 
-    # Get benchmark name
-    bench_name = py_results.get("benchmarks", [{}])[0].get("name", "unknown")
-
-    output(f"# {bench_name}")
+    # Header based on file name
+    file_name = py_path.stem.replace("_py", "")
+    output(f"# {file_name}")
     output()
     output("GPU Time: Mean GPU execution time (cold start, pure kernel)")
     output("  CUDA events (nvbench tag: nv/cold/time/gpu/mean)")
@@ -270,33 +372,106 @@ def compare_benchmark(py_path, cpp_path, device=None, output_file=None):
             m for m in cpp_measurements if m["device"] == device_id
         ]
 
-        # Get unique types (if present)
-        types = sorted(set(m["axes"].get("T", "") for m in py_device_measurements))
-        has_types = any(types)
+        # Get unique benchmark names (for multi-benchmark files like babelstream)
+        py_bench_names = sorted(set(m["benchmark"] for m in py_device_measurements))
+        cpp_bench_names = sorted(set(m["benchmark"] for m in cpp_device_measurements))
+        common_bench_names = [n for n in py_bench_names if n in cpp_bench_names]
 
-        # Group by type (if multi-type benchmark) or just element size
-        if has_types and len(types) > 1:
-            # Multi-type benchmark: show separate table per type
-            for type_str in types:
-                if not type_str:
+        # Track header depth for markdown formatting
+        has_multiple_benchmarks = len(common_bench_names) > 1
+
+        # Process each sub-benchmark
+        for bench_name in common_bench_names:
+            py_bench = [
+                m for m in py_device_measurements if m["benchmark"] == bench_name
+            ]
+            cpp_bench = [
+                m for m in cpp_device_measurements if m["benchmark"] == bench_name
+            ]
+
+            if not py_bench or not cpp_bench:
+                continue
+
+            # Show benchmark name header if multiple benchmarks
+            if has_multiple_benchmarks:
+                output(f"### Benchmark: {bench_name}")
+                output()
+
+            # Identify grouping axes (algorithm-specific)
+            # Use Python measurements as reference (C++ may have extra axes)
+            py_grouping_axes = get_grouping_axes(py_bench)
+            cpp_grouping_axes = get_grouping_axes(cpp_bench)
+
+            # Only group by axes present in BOTH Python and C++
+            common_grouping_axes = [
+                a for a in py_grouping_axes if a in cpp_grouping_axes
+            ]
+
+            # Get all combinations of grouping axis values
+            if common_grouping_axes:
+                axis_value_lists = []
+                for axis in common_grouping_axes:
+                    py_values = set(get_axis_values(py_bench, axis))
+                    cpp_values = set(get_axis_values(cpp_bench, axis))
+                    common_values = sorted(py_values & cpp_values)
+                    axis_value_lists.append(common_values)
+
+                # Generate all combinations
+                grouping_combinations = list(product(*axis_value_lists))
+            else:
+                grouping_combinations = [()]  # Single empty combination
+
+            # Process each grouping combination
+            for combo in grouping_combinations:
+                # Build filter dict for this combination
+                combo_filter = dict(zip(common_grouping_axes, combo))
+
+                # Filter measurements for this combination
+                py_combo = filter_by_axes(py_bench, combo_filter)
+                cpp_combo = filter_by_axes(cpp_bench, combo_filter)
+
+                if not py_combo or not cpp_combo:
                     continue
 
-                output(f"### Type: {type_str}")
-                output()
+                # Show grouping axis values as header if present
+                if combo_filter:
+                    combo_str = ", ".join(f"{k}={v}" for k, v in combo_filter.items())
+                    header_level = "####" if has_multiple_benchmarks else "###"
+                    output(f"{header_level} {combo_str}")
+                    output()
 
-                py_type_measurements = [
-                    m for m in py_device_measurements if m["axes"].get("T") == type_str
-                ]
-                cpp_type_measurements = [
-                    m for m in cpp_device_measurements if m["axes"].get("T") == type_str
-                ]
+                # Now group by Type (T axis)
+                py_types = get_axis_values(py_combo, "T")
+                cpp_types = get_axis_values(cpp_combo, "T")
+                common_types = [t for t in py_types if t in cpp_types]
 
-                _print_comparison_table(py_type_measurements, cpp_type_measurements)
-                output()
-        else:
-            # Single-type or no type axis: show one table
-            _print_comparison_table(py_device_measurements, cpp_device_measurements)
-            output()
+                if common_types:
+                    # Multi-type: show separate table per type
+                    for type_str in common_types:
+                        py_type = filter_by_axes(py_combo, {"T": type_str})
+                        cpp_type = filter_by_axes(cpp_combo, {"T": type_str})
+
+                        if not py_type or not cpp_type:
+                            continue
+
+                        # Determine header level based on context
+                        if combo_filter:
+                            type_header_level = (
+                                "#####" if has_multiple_benchmarks else "####"
+                            )
+                        else:
+                            type_header_level = (
+                                "####" if has_multiple_benchmarks else "###"
+                            )
+
+                        output(f"{type_header_level} Type: {type_str}")
+                        output()
+                        print_comparison_table(py_type, cpp_type, output)
+                        output()
+                else:
+                    # No type axis: show single table
+                    print_comparison_table(py_combo, cpp_combo, output)
+                    output()
 
     # Write to file if requested
     if output_file:
