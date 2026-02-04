@@ -15,7 +15,7 @@ Install `cuda.compute`:
 conda install -c conda-forge cccl-python
 ```
 
-## Build C++ Benchmarks
+### Build C++ Benchmarks
 
 Build CUB benchmarks using the CI script (one-time, ~13 minutes):
 
@@ -45,34 +45,8 @@ Binaries are built to: `build/cub/bin/`
 ## Compare Results
 
 ```bash
-./compare_results.sh -b fill -d 0
+python analysis/python_vs_cpp_summary.py -b fill
 ```
-
-## Makefile Shortcuts
-
-```bash
-make run                    # Run both C++ and Python
-make run-cpp                # Run C++ only
-make run-py                 # Run Python only
-make compare                # Compare results
-
-# With parameters
-make run BENCHMARK=fill DEVICE=0
-```
-
-## Output Files
-
-- `results/fill_cpp.json` - C++ benchmark results
-- `results/fill_py.json` - Python benchmark results
-- `results/fill_comparison.txt` - Comparison report
-
-## Supported Benchmarks
-
-| Benchmark | CUB Source | Python Script |
-|-----------|------------|---------------|
-| `fill` | `cub/benchmarks/bench/transform/fill.cu` | `nvbench_fill.py` |
-
-See `CUB_TO_PYTHON_API_MAPPING.md` for full list of 37 implementable benchmarks.
 
 ## Manual Usage
 
