@@ -33,6 +33,7 @@ import utils
 SUPPORTED_BENCHMARKS = [
     "fill",
     "babelstream",
+    "heavy",
     # Add more as implemented:
     # "reduce_sum",
     # "scan_exclusive_sum",
@@ -111,6 +112,22 @@ def extract_measurements(results):
                 )
 
     return measurements
+
+
+def summarize_skips(results):
+    """Return (total_states, skipped_states, unique_reasons) for an nvbench JSON root."""
+    total = 0
+    skipped = 0
+    reasons = set()
+    for benchmark in results.get("benchmarks", []):
+        for state in benchmark.get("states", []):
+            total += 1
+            if state.get("is_skipped"):
+                skipped += 1
+                reason = state.get("skip_reason")
+                if reason:
+                    reasons.add(str(reason))
+    return total, skipped, reasons
 
 
 def format_duration(seconds):
@@ -319,6 +336,28 @@ def compare_benchmark(py_path, cpp_path, device=None, output_file=None):
 
     py_measurements = extract_measurements(py_results)
     cpp_measurements = extract_measurements(cpp_results)
+
+    if not py_measurements or not cpp_measurements:
+        py_total, py_skipped, py_reasons = summarize_skips(py_results)
+        cpp_total, cpp_skipped, cpp_reasons = summarize_skips(cpp_results)
+        if not py_measurements:
+            print(
+                "Python results contain no non-skipped measurements "
+                f"({py_skipped}/{py_total} states skipped)."
+            )
+            if py_reasons:
+                print("Python skip reasons (first 3):")
+                for r in list(sorted(py_reasons))[:3]:
+                    print(f"  - {r.splitlines()[0]}")
+        if not cpp_measurements:
+            print(
+                "C++ results contain no non-skipped measurements "
+                f"({cpp_skipped}/{cpp_total} states skipped)."
+            )
+            if cpp_reasons:
+                print("C++ skip reasons (first 3):")
+                for r in list(sorted(cpp_reasons))[:3]:
+                    print(f"  - {r.splitlines()[0]}")
 
     # Filter by device if requested
     if device is not None:

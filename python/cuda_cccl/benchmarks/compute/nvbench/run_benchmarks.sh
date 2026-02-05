@@ -42,6 +42,7 @@ RUN_CPP=true
 SUPPORTED_BENCHMARKS=(
     "fill"
     "babelstream"
+    "heavy"
     # Add more as implemented:
     # "reduce_sum"
     # "scan_exclusive_sum"
@@ -172,6 +173,10 @@ for bench in "${BENCHMARKS_TO_RUN[@]}"; do
         babelstream)
             CPP_BINARY="cub.bench.transform.babelstream.base"
             PY_SCRIPT="bench_babelstream.py"
+            ;;
+        heavy)
+            CPP_BINARY="cub.bench.transform.heavy.base"
+            PY_SCRIPT="bench_heavy.py"
             ;;
         # Add more mappings as benchmarks are implemented
         *)
